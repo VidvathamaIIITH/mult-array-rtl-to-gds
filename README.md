@@ -8,11 +8,11 @@ GDSII layout on the SkyWater SKY130 process (`sky130_fd_sc_hd`) with open-source
 
 | Name | Roll number |
 |------|-------------|
-| `<Team member 1 name>` | `<Roll number 1>` |
-| `<Team member 2 name>` | `<Roll number 2>` |
+| Vidvathama R | 2024122002 |
+| Anay Rungta | 2024102050 |
 
-Example used for Part A, task 5: the last digit of `<Roll number 1>` is taken as **3**, so
-**A = 3 + 5 = 8** and **B = 7**. 8 × 7 = **56**.
+Example used for Part A, task 5: the last digit of Vidvathama R's roll number (2024122002)
+is 2, so **A = 2 + 5 = 7**. Because A = 7, the rule gives **B = 9**. 7 × 9 = **63**.
 
 ## Repository layout
 
@@ -94,8 +94,8 @@ vvp sim
 #   -> PASS: 256 vectors checked, 0 errors
 ```
 
-The example a = 8, b = 7 is applied at 2720 ns. It is captured into `a_r`/`b_r` at the
-2725 ns edge, and p = 56 appears at the 2735 ns edge, two clock cycles later.
+The example a = 7, b = 9 is applied at 2440 ns. It is captured into `a_r`/`b_r` at the
+2445 ns edge, and p = 63 appears at the 2455 ns edge, two clock cycles later.
 
 ## Part B: logic synthesis
 
