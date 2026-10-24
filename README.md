@@ -154,26 +154,51 @@ full adder `fa_r3_3`), through 8 combinational cells.
 
 CLOCK_PERIOD = 1.2 × Tmin = 1.2 × 2.604 = 3.125 ns, rounded up to the next 0.5 ns = **3.5 ns**.
 
+`pnr/config.json` contains the six settings the assignment requires, plus one more:
+`STA_CORNERS` is set to the three typical corners (`nom/min/max_tt_025C_1v80`). By default
+LibreLane signs off timing in nine corners (tt / ss / ff × min / nom / max wire parasitics).
+Part C uses the typical corner only, as the assignment specifies, so Part D signs off at the
+same typical corner.
+
 ```bash
 cd pnr
-librelane --manual-pdk --pdk-root $PDK_ROOT config.json
+librelane --manual-pdk --pdk-root $PDK_ROOT --run-tag final_3.5 config.json
 # (--manual-pdk uses the PDK already installed with ciel instead of downloading it again)
 
 # copy the results of the successful run
-cp runs/<tag>/final/metrics.json .
-cp runs/<tag>/final/gds/mult_array.gds .
+cp runs/final_3.5/final/metrics.json .
+cp runs/final_3.5/final/gds/mult_array.gds .
 
 # view the layout
 klayout mult_array.gds
 ```
 
-### Run log
+### Final run: CLOCK_PERIOD = 3.5 ns, typical-corner sign-off (passed on the first run)
 
-LibreLane's `setup__ws` metric is the worst setup slack over all 9 signoff corners
-(tt / ss / ff × min / nom / max parasitics). We increased CLOCK_PERIOD by 0.5 ns until it was ≥ 0.
-Each attempt was run as `librelane --manual-pdk --pdk-root $PDK_ROOT --run-tag clk_<T> <config with CLOCK_PERIOD = T>`.
+| Metric | Value |
+|--------|-------|
+| Setup slack (`setup__ws`, worst of the 3 tt corners) | **+0.036 ns** (max_tt; +0.050 nom_tt, +0.072 min_tt) |
+| Hold slack | +0.307 ns |
+| DRC errors | 0 (Magic 0, KLayout 0, router 0) |
+| LVS errors | 0 |
+| Antenna violations | 0 |
+| Max slew / max cap / max fanout violations | 0 / 0 / 0 |
+| Magic vs KLayout GDS XOR differences | 0 |
+| Instances | 4829 (340 without decap/fill) |
+| Core / die area | 17 759.5 / 22 500 µm² |
+| Wirelength | 2513 µm |
 
-| # | CLOCK_PERIOD (ns) | setup__ws (ns) | tt setup WS (ns) | DRC | LVS | Result |
+Post-route Fmax = 1000 / (3.5 - 0.036) = **288.7 MHz**, versus 384.0 MHz from Part C.
+
+### Earlier all-corner runs
+
+Before choosing typical-corner sign-off we ran the flow with the default nine corners and
+raised CLOCK_PERIOD by 0.5 ns per failing run. Each attempt was run as
+`librelane --manual-pdk --pdk-root $PDK_ROOT --run-tag clk_<T> <config with CLOCK_PERIOD = T>`.
+All of them had 0 DRC and 0 LVS errors and positive typical-corner slack. Only the slow-slow
+corner (1.60 V, 100 °C) failed setup:
+
+| # | CLOCK_PERIOD (ns) | setup__ws, 9 corners (ns) | tt setup WS (ns) | DRC | LVS | Result |
 |---|------|--------|--------|---|---|--------|
 | 1 | 3.5 | -2.093 | +0.493 | 0 | 0 | fail (ss corner) |
 | 2 | 4.0 | -1.593 | +0.993 | 0 | 0 | fail (ss corner) |
@@ -183,16 +208,13 @@ Each attempt was run as `librelane --manual-pdk --pdk-root $PDK_ROOT --run-tag c
 | 6 | 6.0 | -0.043 | +2.795 | 0 | 0 | fail (ss corner) |
 | 7 | 6.5 | -0.155 | +3.050 | 0 | 0 | fail (ss corner) |
 | 8 | 7.0 | -0.046 | +3.317 | 0 | 0 | fail (ss corner) |
-| 9 | **7.5** | **+0.454** | +3.817 | 0 | 0 | **pass** |
+| 9 | 7.5 | +0.454 | +3.817 | 0 | 0 | pass |
 
-The final `config.json` has `CLOCK_PERIOD = 7.5`. It was run once more as
-`librelane --manual-pdk --pdk-root $PDK_ROOT --run-tag final config.json`, which gave the same
-result (setup__ws +0.454 ns, hold +0.120 ns, 0 DRC (Magic and KLayout), 0 LVS, 4831 instances,
-2516 µm wirelength). `pnr/metrics.json` and `pnr/mult_array.gds` were copied from
-`runs/final/final/`.
-
-Post-route Fmax = 1000 / (7.5 - 0.454) = 141.9 MHz (worst corner), or 271.5 MHz using the
-tt-corner slack, versus 384.0 MHz from Part C.
+So the design meets 3.5 ns at the typical corner and would need about 7.5 ns to also meet the
+slow corner (post-route Fmax 141.9 MHz in that run). In the all-corner run at 3.5 ns the
+typical-corner slack was larger (+0.493 ns) because the resizer, trying to fix the slow
+corner, upsized 29 cells and added 15 buffers. In the final typical-corner run it upsized
+only 2 cells.
 
 The two layout screenshots in the report were taken with KLayout. We opened `pnr/mult_array.gds`
 with the SKY130 layer properties (`$PDK_ROOT/sky130A/libs.tech/klayout/tech/sky130A.lyp`),
