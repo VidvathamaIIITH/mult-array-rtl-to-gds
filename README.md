@@ -4,6 +4,8 @@ Digital VLSI Design team assignment: a 4-bit × 4-bit unsigned array multiplier 
 12 full adders, 16 flip-flops, 2-cycle latency), taken from Verilog RTL to a routed
 GDSII layout on the SkyWater SKY130 process (`sky130_fd_sc_hd`) with open-source tools.
 
+Repository: https://github.com/VidvathamaIIITH/mult-array-rtl-to-gds
+
 ## Team
 
 | Name | Roll number |
@@ -37,6 +39,7 @@ report/report.pdf             results tables, screenshots, answers
 | Tool | Version |
 |------|---------|
 | Icarus Verilog | 13.0 |
+| GTKWave | 3.3.121 |
 | Yosys (Parts A/B) | 0.69 |
 | OpenSTA | 2.7.0 |
 | LibreLane | 3.0.16 (bundles OpenROAD 2026-02-17, Yosys 0.62, Magic 8.3.623, Netgen 1.5.316, KLayout 0.30.7) |
@@ -94,8 +97,20 @@ vvp sim
 #   -> PASS: 256 vectors checked, 0 errors
 ```
 
-The example a = 7, b = 9 is applied at 2440 ns. It is captured into `a_r`/`b_r` at the
-2445 ns edge, and p = 63 appears at the 2455 ns edge, two clock cycles later.
+The example a = 7, b = 9 is applied at 2440 ns, during the clock cycle that starts at 2435 ns.
+It is captured into `a_r`/`b_r` at the 2445 ns edge (edge 1), and p = 63 is registered at the
+2455 ns edge (edge 2): 20 ns, i.e. 2 clock cycles, after the start of the input cycle.
+
+The waveform figure in the report is a GTKWave screenshot of `mult.vcd`, set up as follows:
+
+1. Signals: `tb_mult.clk`, `tb_mult.rst_n`, `tb_mult.a[3:0]`, `tb_mult.b[3:0]`,
+   `tb_mult.dut.a_r[3:0]`, `tb_mult.dut.b_r[3:0]`, `tb_mult.p[7:0]`, shown in decimal
+   (Edit → Data Format → Decimal) with the time scale in ns.
+2. Zoom range 2425–2465 ns.
+3. Named markers: A = 2435 ns ("cycle 0: apply a=7 b=9"), B = 2445 ns ("edge 1"),
+   C = 2455 ns ("edge 2: p=63").
+4. Baseline marker at 2435 ns and primary marker at 2455 ns. The GTKWave toolbar then reads
+   `Marker: B+20 ns`: the product arrives two 10 ns clock cycles after the input cycle starts.
 
 ## Part B: logic synthesis
 
