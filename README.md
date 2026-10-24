@@ -179,8 +179,14 @@ result (setup__ws +0.454 ns, hold +0.120 ns, 0 DRC (Magic and KLayout), 0 LVS, 4
 Post-route Fmax = 1000 / (7.5 - 0.454) = 141.9 MHz (worst corner), or 271.5 MHz using the
 tt-corner slack, versus 384.0 MHz from Part C.
 
-Layout screenshots in the report were rendered with KLayout in batch mode:
-`klayout -zz -rd gds=pnr/mult_array.gds -rd lyp=$PDK_ROOT/sky130A/libs.tech/klayout/tech/sky130A.lyp -r render_gds.py`.
+The two layout screenshots in the report were taken with KLayout. We opened `pnr/mult_array.gds`
+with the SKY130 layer properties (`$PDK_ROOT/sky130A/libs.tech/klayout/tech/sky130A.lyp`),
+showed only the well, diffusion, poly, local-interconnect and metal/via layers, and saved
+(1) the whole 150 × 150 µm die and (2) a zoomed view of the cell rows and wires:
+
+```bash
+klayout -l $PDK_ROOT/sky130A/libs.tech/klayout/tech/sky130A.lyp pnr/mult_array.gds
+```
 
 ## Git history
 
