@@ -1,7 +1,4 @@
-// full_adder.v
-// 1-bit full adder written with continuous assignments.
-//   sum  = a XOR b XOR cin
-//   cout = majority(a, b, cin)
+// 1-bit full adder
 
 module full_adder (
     input  wire a,

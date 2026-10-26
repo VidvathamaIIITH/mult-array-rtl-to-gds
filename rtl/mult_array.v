@@ -1,17 +1,4 @@
-// mult_array.v
-// 4-bit x 4-bit unsigned array multiplier (8-bit product).
-//
-// Structure (Section 2 of the assignment):
-//   * 16 AND gates form the partial products pp_i[j] = a[j] & b[i]
-//   * Row 0      : AND gates only, p[0] = pp0[0]
-//   * Rows 1..3  : 4-bit ripple-carry adder (4 full adders each, 12 total)
-//                  s_i = pp_i + r_{i-1}, p[i] = s_i[0]
-//   * Row 3 also produces p[7:4] = {c3[4], s3[3], s3[2], s3[1]}
-//
-// Inputs a, b are registered (8 FFs) and the product is registered (8 FFs),
-// giving 16 flip-flops and a latency of 2 clock cycles.
-// rst_n is an asynchronous, active-low reset that clears every register.
-// The '*' operator is intentionally not used.
+// 4x4 unsigned array multiplier with registered inputs and output (latency 2)
 
 module mult_array (
     input  wire       clk,
@@ -21,9 +8,6 @@ module mult_array (
     output reg  [7:0] p
 );
 
-    // ------------------------------------------------------------------
-    // Input registers
-    // ------------------------------------------------------------------
     reg [3:0] a_r, b_r;
 
     always @(posedge clk or negedge rst_n) begin
@@ -36,22 +20,16 @@ module mult_array (
         end
     end
 
-    // ------------------------------------------------------------------
-    // Partial products: pp_i[j] = a[j] AND b[i]   (16 AND gates)
-    // ------------------------------------------------------------------
+    // partial products: pp_i[j] = a[j] & b[i]
     wire [3:0] pp0 = a_r & {4{b_r[0]}};
     wire [3:0] pp1 = a_r & {4{b_r[1]}};
     wire [3:0] pp2 = a_r & {4{b_r[2]}};
     wire [3:0] pp3 = a_r & {4{b_r[3]}};
 
-    // ------------------------------------------------------------------
-    // Row 0: no adders
-    // ------------------------------------------------------------------
+    // row 0: no adders, pass upper 3 bits down
     wire [3:0] r0 = {1'b0, pp0[3], pp0[2], pp0[1]};
 
-    // ------------------------------------------------------------------
-    // Row 1: s1 = pp1 + r0
-    // ------------------------------------------------------------------
+    // row 1: s1 = pp1 + r0
     wire [3:0] s1;
     wire [4:0] c1;
     assign c1[0] = 1'b0;
@@ -63,9 +41,7 @@ module mult_array (
 
     wire [3:0] r1 = {c1[4], s1[3], s1[2], s1[1]};
 
-    // ------------------------------------------------------------------
-    // Row 2: s2 = pp2 + r1
-    // ------------------------------------------------------------------
+    // row 2: s2 = pp2 + r1
     wire [3:0] s2;
     wire [4:0] c2;
     assign c2[0] = 1'b0;
@@ -77,9 +53,7 @@ module mult_array (
 
     wire [3:0] r2 = {c2[4], s2[3], s2[2], s2[1]};
 
-    // ------------------------------------------------------------------
-    // Row 3: s3 = pp3 + r2
-    // ------------------------------------------------------------------
+    // row 3: s3 = pp3 + r2
     wire [3:0] s3;
     wire [4:0] c3;
     assign c3[0] = 1'b0;
@@ -89,14 +63,8 @@ module mult_array (
     full_adder fa_r3_2 (.a(pp3[2]), .b(r2[2]), .cin(c3[2]), .sum(s3[2]), .cout(c3[3]));
     full_adder fa_r3_3 (.a(pp3[3]), .b(r2[3]), .cin(c3[3]), .sum(s3[3]), .cout(c3[4]));
 
-    // ------------------------------------------------------------------
-    // Assemble the product
-    // ------------------------------------------------------------------
     wire [7:0] p_comb = {c3[4], s3[3], s3[2], s3[1], s3[0], s2[0], s1[0], pp0[0]};
 
-    // ------------------------------------------------------------------
-    // Output register
-    // ------------------------------------------------------------------
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n)
             p <= 8'd0;

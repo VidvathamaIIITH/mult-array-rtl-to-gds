@@ -1,11 +1,4 @@
-// tb_mult.v
-// Exhaustive, self-checking testbench for mult_array.
-//   * 10 ns clock, rst_n held low for the first 2 cycles
-//   * applies all 256 (a, b) combinations
-//   * waits the 2-cycle latency, then compares p with a * b
-//   * prints every mismatch and exactly one PASS/FAIL summary line
-//   * dumps mult.vcd
-// Works for both the RTL and the gate-level netlist (-DFUNCTIONAL -DUNIT_DELAY=#1).
+// testbench for mult_array
 
 `timescale 1ns/1ps
 
@@ -30,9 +23,8 @@ module tb_mult;
         .p    (p)
     );
 
-    // 10 ns period clock
     initial clk = 1'b0;
-    always #5 clk = ~clk;
+    always #5 clk = ~clk;   // 10 ns period
 
     initial begin
         $dumpfile("mult.vcd");
@@ -46,7 +38,6 @@ module tb_mult;
         a       = 4'd0;
         b       = 4'd0;
 
-        // hold reset low for the first 2 clock cycles
         rst_n = 1'b0;
         repeat (2) @(posedge clk);
         @(negedge clk);
@@ -54,12 +45,12 @@ module tb_mult;
 
         for (i = 0; i < 16; i = i + 1) begin
             for (j = 0; j < 16; j = j + 1) begin
-                // apply inputs away from the active (rising) edge
+                // inputs change on the falling edge
                 a = i[3:0];
                 b = j[3:0];
-                expected = i * j;          // '*' allowed in the testbench only
+                expected = i * j;
 
-                // 2-cycle latency: edge 1 captures a/b, edge 2 captures p
+                // edge 1 loads a/b, edge 2 loads p
                 repeat (2) @(posedge clk);
                 @(negedge clk);
 
@@ -80,10 +71,9 @@ module tb_mult;
         $finish;
     end
 
-    // safety timeout
     initial begin
         #100000;
-        $display("FAIL: timeout");
+        $display("FAIL: timeout after %0d vectors checked, %0d errors", checked, errors);
         $finish;
     end
 
