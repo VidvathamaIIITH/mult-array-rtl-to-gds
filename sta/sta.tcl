@@ -4,7 +4,6 @@
 # The clock period T (ns) can be set with the environment variable CLK_PERIOD.
 #   Run 1:  CLK_PERIOD=10 sta sta/sta.tcl  -> WNS = 7.396 ns -> Tmin = 10 - 7.396 = 2.604 ns
 #   Run 2:  sta sta/sta.tcl                -> T = Tmin rounded up to 0.01 ns = 2.61 ns, slack +0.006 ns
-# The default below is the final run, which produces sta/mult_array_timing.rpt.
 
 if {[info exists ::env(PDK_ROOT)]} {
     set pdk_root $::env(PDK_ROOT)
