@@ -1,231 +1,98 @@
 # 4-bit Array Multiplier: RTL to GDSII (SKY130)
 
-Digital VLSI Design team assignment: a 4-bit × 4-bit unsigned array multiplier (16 AND gates,
-12 full adders, 16 flip-flops, 2-cycle latency), taken from Verilog RTL to a routed
-GDSII layout on the SkyWater SKY130 process (`sky130_fd_sc_hd`) with open-source tools.
-
-Repository: https://github.com/VidvathamaIIITH/mult-array-rtl-to-gds
-
-## Team
-
 | Name | Roll number |
 |------|-------------|
 | Vidvathama R | 2024122002 |
 | Anay Rungta | 2024102050 |
 
-Example used for Part A, task 5: the last digit of Vidvathama R's roll number (2024122002)
-is 2, so **A = 2 + 5 = 7**. Because A = 7, the rule gives **B = 9**. 7 × 9 = **63**.
+Part A example: the last digit of Vidvathama R's roll number (2024122002) is 2, so A = 2 + 5 = 7.
+Since A = 7, B = 9, and 7 × 9 = 63.
 
-## Repository layout
+Tools: Icarus Verilog 13.0, GTKWave 3.3.121, Yosys 0.69, OpenSTA 2.7.0, LibreLane 3.0.16,
+SKY130 PDK (open_pdks `8afc8346`).
 
-```
-README.md
-rtl/full_adder.v              full adder (assign statements)
-rtl/mult_array.v              array multiplier, 12 full_adder instances, no '*'
-tb/tb_mult.v                  exhaustive self-checking testbench (256 vectors)
-synth/synth.tcl               Yosys script
-synth/mult_array_netlist.v    gate-level netlist           (generated)
-synth/mult_array_stat.rpt     cell / area report           (generated)
-sta/sta.tcl                   OpenSTA script
-sta/mult_array_timing.rpt     critical-path report         (generated)
-pnr/config.json               LibreLane configuration
-pnr/metrics.json              from runs/<tag>/final/        (copied)
-pnr/mult_array.gds            from runs/<tag>/final/gds/    (copied)
-report/report.pdf             results tables, screenshots, answers
-```
+## Setup
 
-## Tool versions
-
-| Tool | Version |
-|------|---------|
-| Icarus Verilog | 13.0 |
-| GTKWave | 3.3.121 |
-| Yosys (Parts A/B) | 0.69 |
-| OpenSTA | 2.7.0 |
-| LibreLane | 3.0.16 (bundles OpenROAD 2026-02-17, Yosys 0.62, Magic 8.3.623, Netgen 1.5.316, KLayout 0.30.7) |
-| SKY130 PDK | open_pdks `8afc8346a57fe1ab7934ba5a6056ea8b43078e71` (the revision pinned by LibreLane 3.0.16), installed with `ciel` |
-
-## Environment
-
-The assignment recommends the IIC-OSIC-TOOLS Docker image. Our machine (Ubuntu 22.04) has no
-Docker and no root access, so we installed the same tools without root:
+Our Ubuntu 22.04 machine has no Docker or root access, so we installed the tools without root
+instead of using IIC-OSIC-TOOLS:
 
 ```bash
-# conda environment for iverilog / yosys / gtkwave (micromamba, conda-forge + litex-hub)
 micromamba create -n eda -c conda-forge -c litex-hub iverilog yosys gtkwave python=3.11
 micromamba run -n eda pip install ciel
-
-# SKY130 PDK at the revision LibreLane 3.0.16 expects
 ciel enable --pdk-family sky130 8afc8346a57fe1ab7934ba5a6056ea8b43078e71
 export PDK_ROOT=$HOME/.ciel PDK=sky130A
-
-# LibreLane + OpenROAD + OpenSTA + Magic + Netgen + KLayout from the official LibreLane Nix flake,
-# run through nix-portable (no root needed)
-nix develop github:librelane/librelane/3.0.16
-```
-
-Checks (Section 4.2):
-
-```bash
-iverilog -V | head -1      # Icarus Verilog version 13.0 (stable)
-yosys -V                   # Yosys 0.69
-sta -version               # 2.7.0
-echo $PDK_ROOT $PDK        # /home/<user>/.ciel sky130A
+nix develop github:librelane/librelane/3.0.16    # LibreLane, OpenROAD, OpenSTA, Magic, Netgen, KLayout
 ```
 
 All commands below are run from the repository root unless a `cd` is shown.
 
-## Part A: RTL design and verification
+## Part A: RTL simulation
 
 ```bash
-# 1-4. simulate the RTL with the exhaustive testbench
 iverilog -g2012 -o sim tb/tb_mult.v rtl/full_adder.v rtl/mult_array.v
-vvp sim
-#   -> PASS: 256 vectors checked, 0 errors
-gtkwave mult.vcd
+vvp sim                      # PASS: 256 vectors checked, 0 errors
+gtkwave mult.vcd             # a=7, b=9 applied at 2440 ns, p=63 registered at 2455 ns
 
-# 6. error-injection test: temporarily change sum in rtl/full_adder.v to  a ^ b
+# error-injection test: change sum to a ^ b, run, then undo
 sed -i 's/assign sum  = a ^ b ^ cin;/assign sum  = a ^ b;/' rtl/full_adder.v
 iverilog -g2012 -o sim tb/tb_mult.v rtl/full_adder.v rtl/mult_array.v
-vvp sim
-#   -> MISMATCH at 1060 ns: a=3 b=3 p=5 expected=9   (95 mismatch lines)
-#   -> FAIL: 256 vectors checked, 95 errors
-# undo the change
+vvp sim                      # FAIL: 256 vectors checked, 95 errors
 sed -i 's/assign sum  = a ^ b;/assign sum  = a ^ b ^ cin;/' rtl/full_adder.v
 iverilog -g2012 -o sim tb/tb_mult.v rtl/full_adder.v rtl/mult_array.v
-vvp sim
-#   -> PASS: 256 vectors checked, 0 errors
+vvp sim                      # PASS again
 ```
 
-The example a = 7, b = 9 is applied at 2440 ns, during the clock cycle that starts at 2435 ns.
-It is captured into `a_r`/`b_r` at the 2445 ns edge (edge 1), and p = 63 is registered at the
-2455 ns edge (edge 2): 20 ns, i.e. 2 clock cycles, after the start of the input cycle.
-
-The waveform figure in the report is a GTKWave screenshot of `mult.vcd`, set up as follows:
-
-1. Signals: `tb_mult.clk`, `tb_mult.rst_n`, `tb_mult.a[3:0]`, `tb_mult.b[3:0]`,
-   `tb_mult.dut.a_r[3:0]`, `tb_mult.dut.b_r[3:0]`, `tb_mult.p[7:0]`, shown in decimal
-   (Edit → Data Format → Decimal) with the time scale in ns.
-2. Zoom range 2425–2465 ns.
-3. Named markers: A = 2435 ns ("cycle 0: apply a=7 b=9"), B = 2445 ns ("edge 1"),
-   C = 2455 ns ("edge 2: p=63").
-4. Baseline marker at 2435 ns and primary marker at 2455 ns. The GTKWave toolbar then reads
-   `Marker: B+20 ns`: the product arrives two 10 ns clock cycles after the input cycle starts.
-
-## Part B: logic synthesis
+## Part B: synthesis
 
 ```bash
 yosys -c synth/synth.tcl
-#   -> synth/mult_array_netlist.v, synth/mult_array_stat.rpt
-
-# gate-level simulation of the netlist with the same testbench
 CELLS=$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/verilog
 iverilog -g2012 -DFUNCTIONAL -DUNIT_DELAY=#1 -o gls \
   tb/tb_mult.v $CELLS/primitives.v $CELLS/sky130_fd_sc_hd.v synth/mult_array_netlist.v
-vvp gls
-#   -> PASS: 256 vectors checked, 0 errors
+vvp gls                      # PASS: 256 vectors checked, 0 errors
 ```
-
-Result: 63 cells, 16 flip-flops (`sky130_fd_sc_hd__dfrtp_1`), 740.71 µm² total, of which
-400.38 µm² (54.05 %) is flip-flops.
 
 ## Part C: static timing analysis
 
-`sta/sta.tcl` reads the clock period from the `CLK_PERIOD` environment variable.
-The default is the final value, 2.61 ns.
+`sta/sta.tcl` reads the clock period from `CLK_PERIOD` (default 2.61 ns).
 
 ```bash
-# run 1: T = 10 ns
-CLK_PERIOD=10 sta sta/sta.tcl
-#   -> worst slack max 7.40    (7.396 ns in the report)
-#   Tmin = 10 - 7.396 = 2.604 ns,  Fmax = 1000 / 2.604 = 384.0 MHz
-
-# run 2: T = Tmin rounded to 0.01 ns
-CLK_PERIOD=2.60 sta sta/sta.tcl
-#   -> worst slack max -0.00   (-0.004 ns: 2.60 is just below 2.604)
-sta sta/sta.tcl                       # T = 2.61 ns (rounded up)
-#   -> worst slack max 0.01    (+0.006 ns), written to sta/mult_array_timing.rpt
+CLK_PERIOD=10 sta sta/sta.tcl     # worst slack 7.396 -> Tmin = 2.604 ns, Fmax = 384.0 MHz
+CLK_PERIOD=2.60 sta sta/sta.tcl   # worst slack -0.004
+sta sta/sta.tcl                   # T = 2.61 ns, slack +0.006, writes sta/mult_array_timing.rpt
 ```
 
-Critical path: `a_r[1]` (launch flip-flop) → `p[6]` (capture flip-flop, the sum of the last
-full adder `fa_r3_3`), through 8 combinational cells.
+## Part D: place and route
 
-## Part D: physical design with LibreLane
-
-CLOCK_PERIOD = 1.2 × Tmin = 1.2 × 2.604 = 3.125 ns, rounded up to the next 0.5 ns = **3.5 ns**.
-
-`pnr/config.json` contains the six settings the assignment requires, plus one more:
-`STA_CORNERS` is set to the three typical corners (`nom/min/max_tt_025C_1v80`). By default
-LibreLane signs off timing in nine corners (tt / ss / ff × min / nom / max wire parasitics).
-Part C uses the typical corner only, as the assignment specifies, so Part D signs off at the
-same typical corner.
+CLOCK_PERIOD = 1.2 × 2.604 = 3.125 ns, rounded up to 3.5 ns. `STA_CORNERS` limits sign-off to
+the typical corner (`min/nom/max_tt_025C_1v80`), the same corner as Part C.
 
 ```bash
 cd pnr
 librelane --manual-pdk --pdk-root $PDK_ROOT --run-tag final_3.5 config.json
-# (--manual-pdk uses the PDK already installed with ciel instead of downloading it again)
-
-# copy the results of the successful run
 cp runs/final_3.5/final/metrics.json .
 cp runs/final_3.5/final/gds/mult_array.gds .
-
-# view the layout
-klayout mult_array.gds
+klayout -l $PDK_ROOT/sky130A/libs.tech/klayout/tech/sky130A.lyp mult_array.gds
 ```
 
-### Final run: CLOCK_PERIOD = 3.5 ns, typical-corner sign-off (passed on the first run)
+### Run log
 
-| Metric | Value |
-|--------|-------|
-| Setup slack (`setup__ws`, worst of the 3 tt corners) | **+0.036 ns** (max_tt; +0.050 nom_tt, +0.072 min_tt) |
-| Hold slack | +0.307 ns |
-| DRC errors | 0 (Magic 0, KLayout 0, router 0) |
-| LVS errors | 0 |
-| Antenna violations | 0 |
-| Max slew / max cap / max fanout violations | 0 / 0 / 0 |
-| Magic vs KLayout GDS XOR differences | 0 |
-| Instances | 4829 (340 without decap/fill) |
-| Core / die area | 17 759.5 / 22 500 µm² |
-| Wirelength | 2513 µm |
+Runs 1–9 used LibreLane's default nine sign-off corners (tt/ss/ff × min/nom/max parasitics), each
+run as `librelane --manual-pdk --pdk-root $PDK_ROOT --run-tag clk_<T> <config with CLOCK_PERIOD = T>`.
+Only the slow-slow corner (1.60 V, 100 °C) failed. Run 10 is the final run with `config.json`.
 
-Post-route Fmax = 1000 / (3.5 - 0.036) = **288.7 MHz**, versus 384.0 MHz from Part C.
+| Run | CLOCK_PERIOD (ns) | Sign-off corners | setup__ws (ns) | nom_tt slack (ns) | DRC | LVS | Result |
+|-----|------|---------|--------|--------|---|---|--------|
+| 1   | 3.5  | all 9   | -2.093 | +0.493 | 0 | 0 | fail (ss) |
+| 2   | 4.0  | all 9   | -1.593 | +0.993 | 0 | 0 | fail (ss) |
+| 3   | 4.5  | all 9   | -1.093 | +1.493 | 0 | 0 | fail (ss) |
+| 4   | 5.0  | all 9   | -0.596 | +1.991 | 0 | 0 | fail (ss) |
+| 5   | 5.5  | all 9   | -0.104 | +2.487 | 0 | 0 | fail (ss) |
+| 6   | 6.0  | all 9   | -0.043 | +2.795 | 0 | 0 | fail (ss) |
+| 7   | 6.5  | all 9   | -0.155 | +3.050 | 0 | 0 | fail (ss) |
+| 8   | 7.0  | all 9   | -0.046 | +3.317 | 0 | 0 | fail (ss) |
+| 9   | 7.5  | all 9   | +0.454 | +3.817 | 0 | 0 | pass |
+| 10  | 3.5  | tt only | +0.036 | +0.050 | 0 | 0 | **pass (final)** |
 
-### Earlier all-corner runs
-
-Before choosing typical-corner sign-off we ran the flow with the default nine corners and
-raised CLOCK_PERIOD by 0.5 ns per failing run. Each attempt was run as
-`librelane --manual-pdk --pdk-root $PDK_ROOT --run-tag clk_<T> <config with CLOCK_PERIOD = T>`.
-All of them had 0 DRC and 0 LVS errors and positive typical-corner slack. Only the slow-slow
-corner (1.60 V, 100 °C) failed setup:
-
-| # | CLOCK_PERIOD (ns) | setup__ws, 9 corners (ns) | tt setup WS (ns) | DRC | LVS | Result |
-|---|------|--------|--------|---|---|--------|
-| 1 | 3.5 | -2.093 | +0.493 | 0 | 0 | fail (ss corner) |
-| 2 | 4.0 | -1.593 | +0.993 | 0 | 0 | fail (ss corner) |
-| 3 | 4.5 | -1.093 | +1.493 | 0 | 0 | fail (ss corner) |
-| 4 | 5.0 | -0.596 | +1.991 | 0 | 0 | fail (ss corner) |
-| 5 | 5.5 | -0.104 | +2.487 | 0 | 0 | fail (ss corner) |
-| 6 | 6.0 | -0.043 | +2.795 | 0 | 0 | fail (ss corner) |
-| 7 | 6.5 | -0.155 | +3.050 | 0 | 0 | fail (ss corner) |
-| 8 | 7.0 | -0.046 | +3.317 | 0 | 0 | fail (ss corner) |
-| 9 | 7.5 | +0.454 | +3.817 | 0 | 0 | pass |
-
-So the design meets 3.5 ns at the typical corner and would need about 7.5 ns to also meet the
-slow corner (post-route Fmax 141.9 MHz in that run). In the all-corner run at 3.5 ns the
-typical-corner slack was larger (+0.493 ns) because the resizer, trying to fix the slow
-corner, upsized 29 cells and added 15 buffers. In the final typical-corner run it upsized
-only 2 cells.
-
-The two layout screenshots in the report were taken with KLayout. We opened `pnr/mult_array.gds`
-with the SKY130 layer properties (`$PDK_ROOT/sky130A/libs.tech/klayout/tech/sky130A.lyp`),
-showed only the well, diffusion, poly, local-interconnect and metal/via layers, and saved
-(1) the whole 150 × 150 µm die and (2) a zoomed view of the cell rows and wires:
-
-```bash
-klayout -l $PDK_ROOT/sky130A/libs.tech/klayout/tech/sky130A.lyp pnr/mult_array.gds
-```
-
-## Git history
-
-The work was committed one part at a time (Part A, B, C, D, report). The `runs/` folder is
-not committed (see `.gitignore`).
+Final run: 4829 cells, 2513 µm wirelength, hold slack +0.307 ns.
+Post-route Fmax = 1000 / (3.5 − 0.036) = 288.7 MHz (Part C: 384.0 MHz).
